@@ -8,17 +8,17 @@ class BiLstm(nn.Module):
         super(BiLstm,self).__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_size)
         self.bilstm = nn.LSTM(embedding_size,hidden_size,batch_first=True,bidirectional=True)
-        #self.fc = nn.Linear(2*hidden_size,out_size)
-        self.fc = nn.Linear(embedding_size,out_size)
+        self.fc = nn.Linear(2*hidden_size,out_size)
+        #self.fc = nn.Linear(embedding_size,out_size)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self,inputs_ids,input_lens):
         # [b,l,emb_size ]
         emb = self.dropout(self.embedding(inputs_ids))
         # 这里要求输入按长度递减排好序，否则enforce_sorted设置为false,低版本方法有不同之处
-        #emb = nn.utils.rnn.pack_padded_sequence(emb, input_lens, batch_first=True)
-        #emb,_ = self.bilstm(emb)
-        #emb,_ = nn.utils.rnn.pad_packed_sequence(emb,batch_first=True,padding_value=0.,total_length=inputs_ids.shape[1])
+        emb = nn.utils.rnn.pack_padded_sequence(emb, input_lens, batch_first=True)
+        emb,_ = self.bilstm(emb)
+        emb,_ = nn.utils.rnn.pad_packed_sequence(emb,batch_first=True,padding_value=0.,total_length=inputs_ids.shape[1])
         scores = self.fc(emb)
         return scores
 

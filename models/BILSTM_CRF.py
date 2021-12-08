@@ -38,14 +38,12 @@ class BiLstmCRFModel(nn.Module):
         features = self.classifier(seqence_output)
         return features
 
-    def forward_loss(self, input_ids, input_mask, input_lens, input_tags=None):
+    def forward_loss(self, input_ids, input_mask, input_lens, input_tags):
         features = self.forward(input_ids, input_mask)
-        if input_tags is not None:
-            return features, self.crf.calculate_loss(features, tag_list=input_tags, lengths=input_lens)
-        else:
-            return features
+        return self.crf.calculate_loss(features, tag_list=input_tags, lengths=input_lens)
+      
 
-    def predict(self, input_ids, input_mask, input_lens, input_tags=None):
+    def predict(self, input_ids, input_mask, input_tags, input_lens):
         features = self.forward(input_ids, input_mask)
         tags, _ = self.crf._obtain_labels(features, self.id2label, input_lens)
         return tags

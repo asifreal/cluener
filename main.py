@@ -85,7 +85,7 @@ def bilstm_evaluate():
                     hidden_size=100,out_size=len(tag2id))
 
     trainer = Trainer(model, id2tag, tag2id, device='gpu', name='bilstm')
-    trainer.train(train_loader, epoches=50)
+    trainer.train(train_loader, dev_loader, epoches=50)
 
     metrics, pred_tag_ids = trainer.evaluate(dev_loader)
     overall, class_info = metrics.result()
@@ -94,10 +94,10 @@ def bilstm_evaluate():
 
 def bilstm_crf_evaluate():
     model = BiLstmCRFModel(vocab_size=len(processor.vocab), embedding_size=128,
-                     hidden_size=384,device=None,label2id=tag2id)
+                     hidden_size=384,device='cuda:0',label2id=tag2id)
 
     trainer = Trainer(model, id2tag, tag2id, device='gpu', name='bilstm-crf')
-    trainer.train(train_loader, epoches=10)
+    trainer.train(train_loader, dev_loader, epoches=10)
     
     metrics, pred_tag_ids = trainer.evaluate(dev_loader)
     overall, class_info = metrics.result()
@@ -106,6 +106,6 @@ def bilstm_crf_evaluate():
 if __name__ == "__main__":
     #hmm_evaluate()
     #crf_evaluate()
-    my_crf_evaluate()
+    #my_crf_evaluate()
     #bilstm_evaluate()
-    #bilstm_crf_evaluate()
+    bilstm_crf_evaluate()
