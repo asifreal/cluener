@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn_crfsuite import CRF
-from .crf import CRF as CRFTorch
+from .torch_crf import CRF as CRFTorch
 from torch import optim
 from tqdm import tqdm
 from .metrics import AverageMeter

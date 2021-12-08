@@ -1,6 +1,6 @@
 from torch.nn import LayerNorm
 import torch.nn as nn
-from .crf import CRF
+from .torch_crf import CRF
 
 class SpatialDropout(nn.Dropout2d):
     def __init__(self, p=0.6):
