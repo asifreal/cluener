@@ -48,7 +48,7 @@ class CRFTorchModel(nn.Module):
         pred_tag_lists, _  = self.crf._obtain_labels(logits, self.id2label, input_lens)
         return pred_tag_lists
 
-    def forward_loss(self, inputs_ids, input_lens, input_tags, mask):
+    def forward_loss(self, inputs_ids, mask, input_lens, input_tags):
         """计算损失
         参数:
             logits: [B, L, out_size]

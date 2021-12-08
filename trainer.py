@@ -31,7 +31,7 @@ class Trainer():
                 input_ids = input_ids.to(self.device)
                 input_mask = input_mask.to(self.device)
                 input_tags = input_tags.to(self.device)
-                loss = self.model.forward_loss(input_ids, input_lens, input_tags, input_mask)
+                loss = self.model.forward_loss(input_ids, input_mask, input_lens, input_tags)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5)
                 optimizer.step()

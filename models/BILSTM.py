@@ -28,7 +28,7 @@ class BiLstm(nn.Module):
         _, batch_tagids = torch.max(logits, dim=2)
         return batch_tagids
 
-    def forward_loss(self, inputs_ids, input_lens, targets, mask):
+    def forward_loss(self, inputs_ids, mask, input_lens, targets):
         """计算损失
         参数:
             logits: [B, L, out_size]
