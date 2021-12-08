@@ -27,75 +27,37 @@ class CRFModel(object):
         return pred_tag_lists
 
 
-class CRFTorchModel(object):
-    def __init__(self,  label2id, vocab_size, max_iterations=100, emb_size=100, device=None):
-        self.max_iterations = max_iterations
+class CRFTorchModel(nn.Module):
+    def __init__(self,  label2id, vocab_size, emb_size=100, device=None):
+        super(CRFTorchModel, self).__init__()
         self.label2id = label2id
         self.id2label = {i: label for i, label in enumerate(label2id)}
         self.embedding = nn.Embedding(vocab_size, emb_size)
         self.fc = nn.Linear(emb_size, len(label2id))
-        self.act = nn.Sigmoid()
-        self.lossfn= nn.CrossEntropyLoss()
-        self.model = CRFTorch(tagset_size=len(label2id), tag_dictionary=label2id, device=device)
+        self.dropout = nn.Dropout(0.1)
+        self.crf = CRFTorch(tagset_size=len(label2id), tag_dictionary=label2id, device=device)
 
-    def train(self, train_loader):
-        parameters = [p for p in self.model.parameters() if p.requires_grad] 
-        parameters += [p for p in self.embedding.parameters() if p.requires_grad]
-        parameters += [p for p in self.fc.parameters() if p.requires_grad]
-        optimizer = optim.Adam(parameters, lr=0.1)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3,
-                                    verbose=1, threshold=1e-4, cooldown=0, min_lr=0, eps=1e-8)
-        
-        for epoch in range(1, self.max_iterations + 1):
-            train_loss = AverageMeter()
-            self.model.train()
-            pbar = tqdm(total=len(train_loader))
-            for step, batch in enumerate(train_loader):
-                input_ids, input_mask, input_tags, input_lens = batch
-                #features = tensor2features(input_ids, len(self.label2id)) #input_ids.unsqueeze(-1).repeat(1, 1, len(self.label2id))   
-                features = self.act(self.fc(self.embedding(input_ids)))
-                crf_loss = self.model.calculate_loss(features, tag_list=input_tags, lengths=input_lens)
-                logits = features.masked_select(
-                    (input_mask!=0).unsqueeze(2).expand(-1, -1, len(self.label2id))
-                ).contiguous().view(-1, len(self.label2id))
-                target = input_tags[input_mask != 0].contiguous().view(-1)
-                #print(input_mask.shape, input_tags.shape, features.shape, logits.shape, target.shape)
-                label_loss = F.cross_entropy(logits, target)
-                loss = label_loss * 100 + crf_loss
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5.0)
-                optimizer.step()
-                optimizer.zero_grad()
-                train_loss.update(loss.item(), n=1)
+    def forward(self,inputs_ids,input_lens):
+        # [b,l,emb_size ]
+        emb = self.dropout(self.embedding(inputs_ids))
+        scores = self.fc(emb)
+        return scores
 
-                pbar.update(1)
-                pbar.set_description(desc='Epoch: {:>5d}'.format(epoch))
-                pbar.set_postfix({'loss':'{:.>5f}'.format(loss.item()), 'crfloss':'{:.>5f}'.format(crf_loss.item()), 'clsloss':'{:.>5f}'.format(label_loss.item())})
+    def predict(self, input_ids, input_mask, input_tags, input_lens):
+        logits = self.forward(input_ids, input_lens)  # [B, L, out_size]
+        pred_tag_lists, _  = self.crf._obtain_labels(logits, self.id2label, input_lens)
+        return pred_tag_lists
 
-            #print(f'Epoch: ({epoch} / {self.max_iterations}) - loss: { train_loss.avg}')
-
-    def test(self, dev_loader):
-        result = []
-        for _, batch in enumerate(dev_loader):
-            input_ids, input_mask, input_tags, input_lens = batch
-            #features = tensor2features(input_ids, len(self.label2id)) #input_ids.unsqueeze(-1).repeat(1, 1, len(self.label2id))
-            features = self.fc(self.embedding(input_ids))
-            pred_tag_lists, _ = self.model._obtain_labels(features, self.id2label, input_lens)
-            result.extend(pred_tag_lists)
-        return result
-
-
-def tensor2features(input_ids, length):
-    m, n = input_ids.shape
-    left = (length - 1) // 2
-    right = length - 1 - left
-    
-    buffer = nn.functional.pad( input_ids.repeat(1, n).view(m, n, -1), (left, right) )
-    r = torch.LongTensor(m, n, length)
-    for i in range(m):
-        for j in range(n):
-            r[i, j, :] = buffer[i, j, j : j+length]
-    return r
+    def forward_loss(self, inputs_ids, input_lens, input_tags, mask):
+        """计算损失
+        参数:
+            logits: [B, L, out_size]
+            targets: [B, L]
+            lengths: [B]
+        """
+        logits = self.forward(inputs_ids, input_lens)
+        loss = self.crf.calculate_loss(logits, tag_list=input_tags, lengths=input_lens)
+        return loss
 
 
 def sent2features(sent):

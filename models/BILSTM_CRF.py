@@ -18,6 +18,7 @@ class BiLstmCRFModel(nn.Module):
     def __init__(self,vocab_size,embedding_size,hidden_size,
                  label2id,device,drop_p = 0.1):
         super(BiLstmCRFModel, self).__init__()
+        self.id2label = {i: label for i, label in enumerate(label2id)}
         self.emebdding_size = embedding_size
         self.embedding = nn.Embedding(vocab_size, embedding_size)
         self.bilstm = nn.LSTM(input_size=embedding_size,hidden_size=hidden_size,
@@ -43,3 +44,8 @@ class BiLstmCRFModel(nn.Module):
             return features, self.crf.calculate_loss(features, tag_list=input_tags, lengths=input_lens)
         else:
             return features
+
+    def predict(self, input_ids, input_mask, input_lens, input_tags=None):
+        features = self.forward(input_ids, input_mask)
+        tags, _ = self.crf._obtain_labels(features, self.id2label, input_lens)
+        return tags

@@ -9,6 +9,8 @@ from models.BILSTM_CRF import BiLstmCRFModel
 from models.BILSTM import BiLstm
 from data.data_loader import DataLoader
 from models.metrics import AverageMeter
+from trainer import Trainer
+
 
 print("读取数据中...")
 processor = CluenerProcessor(data_dir=config.data_dir)
@@ -25,6 +27,16 @@ train_word_lists = [ x['context'] for x in train_data ]
 train_tag_lists = [ x['tag'] for x in train_data ]
 dev_word_lists = [ x['context'] for x in dev_data ]
 dev_tag_lists = [ x['tag'] for x in dev_data ]
+
+
+batch_size = 32
+train_loader = DataLoader(data=train_data, batch_size=batch_size,
+                             shuffle=False, seed=43, sort=False,
+                             vocab = processor.vocab, label2id = tag2id)
+
+dev_loader = DataLoader(data=dev_data, batch_size=batch_size,
+                             shuffle=False, seed=43, sort=False,
+                             vocab = processor.vocab, label2id = tag2id)
 
 
 def hmm_evaluate():
@@ -58,72 +70,27 @@ def crf_evaluate():
 
 
 def my_crf_evaluate():
-    batch_size = 20000
-    single_train_loader = DataLoader(data=train_data, batch_size=batch_size,
-                                 shuffle=False, seed=43, sort=False,
-                                 vocab = processor.vocab, label2id = tag2id)
-    input_ids, input_mask, input_tags, input_lens = single_train_loader[0]
+    crf_model = CRFTorchModel(tag2id, len(processor.vocab), device='cuda:0')
 
-    crf_model = CRFTorchModel(tag2id)
-    print("正在训练CRF模型")
-    crf_model.train(input_ids, input_tags, input_lens)
+    trainer = Trainer(crf_model, id2tag, tag2id, device='gpu', name='mycrf')
+    trainer.train(train_loader, dev_loader, epoches=50)
 
-    single_train_loader = DataLoader(data=dev_data, batch_size=batch_size,
-                                 shuffle=False, seed=43, sort=False,
-                                 vocab = processor.vocab, label2id = tag2id)
-    input_ids, input_mask, input_tags, input_lens = single_train_loader[0]
-
-    print("正在评估CRF模型")
-    pred_tag_lists = crf_model.test(input_ids, input_lens, id2tag)
-    metrics = SeqEntityMetrics(id2tag, markup='bios')
-    metrics.update(dev_tag_lists, pred_tag_lists)
+    metrics, pred_tag_ids = trainer.evaluate(dev_loader)
     overall, class_info = metrics.result()
     metrics.print(overall, class_info)
 
 
 def bilstm_evaluate():
-    print("bilstm模型的训练...")
-
-
-    train_loader = DataLoader(data=train_data, batch_size=64,
-                                 shuffle=False, seed=42, sort=True,
-                                 vocab = processor.vocab,label2id = tag2id)
     model = BiLstm(vocab_size=len(processor.vocab), embedding_size=32,
-                     hidden_size=100,device=None,label2id=tag2id)
-    parameters = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.Adam(parameters, lr=0.001)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3,
-                                  verbose=1, threshold=1e-4, cooldown=0, min_lr=0, eps=1e-8)
-    for epoch in range(1, 1 + 10):
-        print(f"Epoch {epoch}/{10}")
-        train_loss = AverageMeter()
-        model.train()
-        assert model.training
-        for step, batch in enumerate(train_loader):
-            input_ids, input_mask, input_tags, input_lens = batch
-            features, loss = model.forward_loss(input_ids, input_mask, input_lens, input_tags)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
-            optimizer.step()
-            optimizer.zero_grad()
-            train_loss.update(loss.item(), n=1)
-        print("loss: ", train_loss.avg)
+                    hidden_size=100,out_size=len(tag2id))
 
-        print("bilstm模型的评估...")
-        dev_loader = DataLoader(data=dev_data, batch_size=32,
-                             shuffle=False, seed=43, sort=False,
-                             vocab = processor.vocab, label2id = tag2id)
-        pred_tag_lists = []
-        metrics = SeqEntityMetrics(id2tag, markup='bios')
-        model.eval()
-        with torch.no_grad():
-            for step, batch in enumerate(dev_loader):
-                input_ids, input_mask, input_tags, input_lens = batch
-                batch_tagids = model.predict(input_ids, input_lens)
-                metrics.update(input_tags, batch_tagids)
-        overall, class_info = metrics.result()
-        metrics.print(overall, class_info)
-       
+    trainer = Trainer(model, id2tag, tag2id, device='gpu')
+    trainer.train(train_loader, epoches=50)
+
+    metrics, pred_tag_ids = trainer.evaluate(dev_loader)
+    overall, class_info = metrics.result()
+    metrics.print(overall, class_info)
+
 
 def bilstm_crf_evaluate():
     print("bilstm+crf模型的评估与训练...")
@@ -169,5 +136,8 @@ def bilstm_crf_evaluate():
     # metrics.print(overall, class_info)
 
 if __name__ == "__main__":
-    hmm_evaluate()
-    crf_evaluate()
+    #hmm_evaluate()
+    #crf_evaluate()
+    my_crf_evaluate()
+    #bilstm_evaluate()
+    #bilstm_crf_evaluate()
