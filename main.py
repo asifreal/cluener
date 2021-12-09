@@ -5,11 +5,12 @@ from metrics import  SeqEntityMetrics
 from data.cluener_processor import CluenerProcessor
 from models.HMM import HMM
 from models.CRF import CRFModel, CRFTorchModel
-from models.BILSTM_CRF import BiLstmCRFModel
-from models.BILSTM import BiLstm
+from models.BILSTM_CRF import BiLstmCRFModel, BiLstmCRFAttnModel
+from models.BILSTM import BiLstm, BiLstmAttention
 from data.data_loader import DataLoader
 from models.metrics import AverageMeter
 from trainer import Trainer
+import time
 
 
 print("读取数据中...")
@@ -91,6 +92,16 @@ def bilstm_evaluate():
     overall, class_info = metrics.result()
     metrics.print(overall, class_info)
 
+def bilstm_attention_evaluate():
+    model = BiLstmAttention(vocab_size=len(processor.vocab), embedding_size=32,
+                    hidden_size=32,out_size=len(tag2id))
+
+    trainer = Trainer(model, id2tag, tag2id, device='gpu', name='bilstm-attn')
+    trainer.train(train_loader, dev_loader, epoches=50)
+
+    metrics, pred_tag_ids = trainer.evaluate(dev_loader)
+    overall, class_info = metrics.result()
+    metrics.print(overall, class_info)
 
 def bilstm_crf_evaluate():
     model = BiLstmCRFModel(vocab_size=len(processor.vocab), embedding_size=128,
@@ -103,9 +114,22 @@ def bilstm_crf_evaluate():
     overall, class_info = metrics.result()
     metrics.print(overall, class_info)
 
+def bilstm_attn_crf_evaluate():
+    model = BiLstmCRFAttnModel(vocab_size=len(processor.vocab), embedding_size=128,
+                     hidden_size=128,device='cuda:0',label2id=tag2id, drop_p=0.5)
+
+    trainer = Trainer(model, id2tag, tag2id, device='gpu', name='bilstm-attn-crf')
+    trainer.train(train_loader, dev_loader, epoches=50)
+    
+    metrics, pred_tag_ids = trainer.evaluate(dev_loader)
+    overall, class_info = metrics.result()
+    metrics.print(overall, class_info)
+
 if __name__ == "__main__":
     #hmm_evaluate()
     #crf_evaluate()
     #my_crf_evaluate()
     #bilstm_evaluate()
-    bilstm_crf_evaluate()
+    #bilstm_attention_evaluate()
+    #bilstm_crf_evaluate()
+    bilstm_attn_crf_evaluate()

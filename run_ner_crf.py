@@ -13,7 +13,7 @@ from callback.lr_scheduler import get_linear_schedule_with_warmup
 from callback.progressbar import ProgressBar
 
 from models.bert.transformers import WEIGHTS_NAME, BertConfig, AlbertConfig
-from models.bert import BertCrfForNer
+from models.bert import BertCrfForNer, BertLstmCrfForNer
 from models.bert import AlbertCrfForNer
 from processors.utils_ner import CNerTokenizer, get_entities
 from processors.ner_seq import convert_examples_to_features
@@ -28,6 +28,7 @@ from tools.common import seed_everything,json_to_text
 MODEL_CLASSES = {
     ## bert ernie bert_wwm bert_wwwm_ext
     'bert': (BertConfig, BertCrfForNer, CNerTokenizer),
+    'bert-lstm': (BertConfig, BertLstmCrfForNer, CNerTokenizer),
     'albert': (AlbertConfig, AlbertCrfForNer, CNerTokenizer)
 }
 
@@ -63,6 +64,14 @@ def train(args, train_dataset, model, tokenizer):
         {'params': [p for n, p in linear_param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0,
          'lr': args.crf_learning_rate}
     ]
+    if model.bilstm is not None:
+        bilstm_param_optimizer = list(model.bilstm.named_parameters())
+        optimizer_grouped_parameters.extend([
+            {'params': [p for n, p in bilstm_param_optimizer if not any(nd in n for nd in no_decay)],
+            'weight_decay': args.weight_decay, 'lr': args.crf_learning_rate},
+            {'params': [p for n, p in bilstm_param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0,
+            'lr': args.crf_learning_rate}
+        ])
     args.warmup_steps = int(t_total * args.warmup_proportion)
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=args.warmup_steps,
