@@ -42,6 +42,31 @@ label2id_bios = {
     "<STOP>": 32
 }
 
+label2id_io = {
+    "O": 0,
+    "I-address":1,
+    "I-book":2,
+    "I-company":3,
+    'I-game':4,
+    'I-government':5,
+    'I-movie':6,
+    'I-name':7,
+    'I-organization':8,
+    'I-position':9,
+    'I-scene':10,
+    "<START>": 11,
+    "<STOP>": 12
+}
+
+label2id_oi = {
+    "O": 0,
+    "I":1,
+    "<START>": 2,
+    "<STOP>": 3
+}
+
 label2id = {
-    'bios': label2id_bios
+    'bios': label2id_bios,
+    'io': label2id_io,
+    'oi': label2id_oi
 }

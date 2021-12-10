@@ -2,7 +2,7 @@ import random
 import torch
 
 class DataLoader(object):
-    def __init__(self, data, batch_size, shuffle, vocab,label2id,seed, sort=True):
+    def __init__(self, data, batch_size, shuffle, vocab,label2id,seed, key='tag', sort=True):
         self.data = data
         self.shuffle = shuffle
         self.batch_size = batch_size
@@ -10,6 +10,7 @@ class DataLoader(object):
         self.sort = sort
         self.vocab = vocab
         self.label2id = label2id
+        self.key=key
         self.reset()
 
     def reset(self):
@@ -30,7 +31,7 @@ class DataLoader(object):
             text_a = d['context']
             tokens = [self.vocab.to_index(w) for w in text_a]
             x_len = len(tokens)
-            text_tag = d['tag']
+            text_tag = d[self.key]
             tag_ids = [self.label2id[tag] for tag in text_tag]
             processed.append((tokens, tag_ids, x_len, text_a, text_tag))
         return processed

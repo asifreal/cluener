@@ -5,23 +5,26 @@ from metrics import SeqEntityMetrics
 import time, os
 from tools.common import init_logger, logger
 from callback.progressbar import ProgressBar
+from callback.optimizater.adamw import AdamW
+from callback.lr_scheduler import get_linear_schedule_with_warmup
 
 class Trainer():
-    def __init__(self, model, id2tag, tag2id, name='bilstm', device=None):
+    def __init__(self, model, id2tag, tag2id, name='bilstm', markup='bios', device=None):
         self.id2tag = id2tag
         self.tag2id =tag2id
         self.name = name
+        self.markup = markup
         if device=='gpu':
             self.device = torch.device(f"cuda:0")
         else:
             self.device = 'cpu'
         model.to(self.device)
         self.model = model
-        time_ = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime())
+        self.time_ = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime())
         log_idr = f'output/{self.name}'
         if not os.path.exists(log_idr):
             os.mkdir(log_idr)
-        init_logger(log_file=f'output/{self.name}/{time_}.log')
+        init_logger(log_file=f'output/{self.name}/{self.time_}.log')
 
     def train(self, train_loader, val_loader=None, epoches=20, lr=0.001):
         logger.info(f"{self.name}模型的训练...")
@@ -74,7 +77,7 @@ class Trainer():
     def evaluate(self, dev_loader, show=False):
         if show: logger.info(f"{self.name}模型的评估...")
         pred_tag_ids = []
-        metrics = SeqEntityMetrics(self.id2tag, markup='bios')
+        metrics = SeqEntityMetrics(self.id2tag, markup=self.markup)
         self.model.eval()
         with torch.no_grad():
             pbar = ProgressBar(n_total=len(dev_loader), desc="Evaluating")
@@ -97,6 +100,6 @@ class Trainer():
         else:
             model_stat_dict = self.model.state_dict()
         state = {'epoch': epoch, 'arch': self.name, 'state_dict': model_stat_dict}
-        model_path =  f'output/{self.name}/best-model.bin'
+        model_path =  f'output/{self.name}/best-model_{self.time_}.bin'
         logger.info(f"save model to disk {model_path}")
         torch.save(state, str(model_path))
