@@ -28,7 +28,7 @@ class BiLstm(nn.Module):
         _, batch_tagids = torch.max(logits, dim=2)
         return batch_tagids
 
-    def forward_loss(self, inputs_ids, mask, input_lens, targets):
+    def forward_loss(self, inputs_ids, mask, input_lens, targets, input_group=None):
         """计算损失
         参数:
             logits: [B, L, out_size]
@@ -55,17 +55,20 @@ class BiLstm(nn.Module):
         return loss
 
 class BiLstmAttention(nn.Module):
-    def __init__(self,vocab_size,embedding_size,hidden_size,out_size,dropout=0.1):
+    def __init__(self,vocab_size,embedding_size,hidden_size,out_size,dropout=0.1,pretrain=None):
         super(BiLstmAttention,self).__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_size)
+        if pretrain is not None:
+            self.embedding.from_pretrained(pretrain, freeze=True)
         self.bilstm = nn.LSTM(embedding_size,hidden_size,batch_first=True,bidirectional=True)
-        self.multihead_attn = nn.MultiheadAttention(embedding_size*2, num_heads=8,batch_first=True)
+        self.multihead_attn = nn.MultiheadAttention(hidden_size*2, num_heads=8,batch_first=True)
         self.fc = nn.Linear(2*hidden_size,out_size)
         self.layer_norm = nn.LayerNorm(hidden_size * 2)
         #self.fc = nn.Linear(embedding_size,out_size)
         self.classifier = nn.Linear(hidden_size * 2, out_size)
         self.dropout = nn.Dropout(dropout)
         self.criterion = nn.CrossEntropyLoss()
+        self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
 
     def forward(self,inputs_ids,input_mask):
         # [b,l,emb_size ]
@@ -84,17 +87,26 @@ class BiLstmAttention(nn.Module):
         _, batch_tagids = torch.max(logits, dim=2)
         return batch_tagids
 
-    def forward_loss(self, inputs_ids, input_mask, input_lens, targets):
+    def forward_loss(self, inputs_ids, input_mask, input_lens, targets, input_group=None):
         """计算损失
         参数:
             logits: [B, L, out_size]
             targets: [B, L]
             input_mask: [B, L]
         """
-        logits = self.forward(inputs_ids, input_mask)
-        out_shape = logits.shape[2]
-        logits = (logits * input_mask.unsqueeze(2)).view(-1, out_shape)
+        feat = self.forward(inputs_ids, input_mask)
+        out_shape = feat.shape[2]
+        logits = (feat * input_mask.unsqueeze(2)).view(-1, out_shape)
         targets = (targets * input_mask).view(-1)
         assert logits.size(0) == targets.size(0)
         loss = self.criterion(logits, targets)
+
+        if input_group is not None:
+            for x, g in zip(feat, input_group):
+                x = x[:len(g)]
+                M = torch.zeros(g.max()+1, len(x)).to('cuda:0')
+                M[g, torch.arange(len(x))] = 1
+                M = torch.nn.functional.normalize(M, p=1, dim=1)
+                logits_group = torch.mm(M, x)[g]
+                loss +=  (1 - self.cos(logits_group, x)).sum()
         return loss

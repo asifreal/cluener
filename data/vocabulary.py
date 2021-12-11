@@ -26,7 +26,7 @@ class Vocabulary(object):
         self.rebuild = True
         self.add_unused = add_unused
         self.word_counter = Counter()
-        self.reset()
+        #self.reset()
 
     def reset(self):
         ctrl_symbols = [self.pad_token,self.unk_token,self.cls_token,self.sep_token,self.mask_token]
@@ -166,7 +166,7 @@ class Vocabulary(object):
         self.word2idx = None
         self.idx2word = None
         self.rebuild = True
-        self.reset()
+        #self.reset()
 
     def __len__(self):
         return len(self.idx2word)

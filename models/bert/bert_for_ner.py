@@ -9,6 +9,17 @@ from torch.nn import CrossEntropyLoss
 from .losses.focal_loss import FocalLoss
 from .losses.label_smoothing import LabelSmoothingCrossEntropy
 
+class SimpleBert(BertPreTrainedModel):
+    def __init__(self, config):
+        super(SimpleBert, self).__init__(config)
+        self.bert = BertModel(config)
+        self.init_weights()
+
+    def forward(self, input_ids, attention_mask=None, token_type_ids=None,
+                position_ids=None, head_mask=None, labels=None, input_lens=None):
+        outputs = self.bert(input_ids = input_ids,attention_mask=attention_mask,token_type_ids=token_type_ids)
+        return outputs[0]
+
 class BertSoftmaxForNer(BertPreTrainedModel):
     def __init__(self, config):
         super(BertSoftmaxForNer, self).__init__(config)
@@ -20,7 +31,7 @@ class BertSoftmaxForNer(BertPreTrainedModel):
         self.init_weights()
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None,
-                position_ids=None, head_mask=None, labels=None):
+                position_ids=None, head_mask=None, labels=None, input_lens=None):
         outputs = self.bert(input_ids = input_ids,attention_mask=attention_mask,token_type_ids=token_type_ids)
         sequence_output = outputs[0]
         sequence_output = self.dropout(sequence_output)

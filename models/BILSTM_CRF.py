@@ -40,7 +40,7 @@ class BiLstmCRFModel(nn.Module):
         features = self.classifier(seqence_output)
         return features
 
-    def forward_loss(self, input_ids, input_mask, input_lens, input_tags):
+    def forward_loss(self, input_ids, input_mask, input_lens, input_tags, input_group=None):
         features = self.forward(input_ids, input_mask)
         return self.crf.calculate_loss(features, tag_list=input_tags, lengths=input_lens)
       
@@ -53,11 +53,13 @@ class BiLstmCRFModel(nn.Module):
 
 class BiLstmCRFAttnModel(nn.Module):
     def __init__(self,vocab_size,embedding_size,hidden_size,
-                 label2id,device,drop_p = 0.1):
+                 label2id,device,drop_p = 0.1, pretrain=None):
         super(BiLstmCRFAttnModel, self).__init__()
         self.id2label = {i: label for i, label in enumerate(label2id)}
         self.emebdding_size = embedding_size
         self.embedding = nn.Embedding(vocab_size, embedding_size)
+        if pretrain is not None:
+            self.embedding.from_pretrained(pretrain)
         self.bilstm = nn.LSTM(input_size=embedding_size,hidden_size=hidden_size,
                               batch_first=True,num_layers=2,dropout=drop_p,
                               bidirectional=True)
@@ -86,7 +88,7 @@ class BiLstmCRFAttnModel(nn.Module):
         features = self.classifier(seqence_output)
         return features
 
-    def forward_loss(self, input_ids, input_mask, input_lens, input_tags):
+    def forward_loss(self, input_ids, input_mask, input_lens, input_tags, input_group=None):
         features = self.forward(input_ids, input_mask)
         return self.crf.calculate_loss(features, tag_list=input_tags, lengths=input_lens)
       

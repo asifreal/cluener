@@ -25,6 +25,7 @@ class Trainer():
         if not os.path.exists(log_idr):
             os.mkdir(log_idr)
         init_logger(log_file=f'output/{self.name}/{self.time_}.log')
+        logger.info(model)
 
     def train(self, train_loader, val_loader=None, epoches=20, lr=0.001):
         logger.info(f"{self.name}模型的训练...")
@@ -38,11 +39,12 @@ class Trainer():
             train_loss = AverageMeter()
             self.model.train()
             for step, batch in enumerate(train_loader):
-                input_ids, input_mask, input_tags, input_lens = batch
+                input_ids, input_mask, input_tags, input_lens, input_group = batch
                 input_ids = input_ids.to(self.device)
                 input_mask = input_mask.to(self.device)
                 input_tags = input_tags.to(self.device)
-                loss = self.model.forward_loss(input_ids, input_mask, input_lens, input_tags)
+                input_group = input_group.to(self.device)
+                loss = self.model.forward_loss(input_ids, input_mask, input_lens, input_tags, input_group)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5)
                 optimizer.step()
@@ -69,7 +71,7 @@ class Trainer():
                 best_f1 = logs['macro-f1']
                 self.save_model(epoch)
                 for key, value in class_info.items():
-                    info = f"Subject: {key} - Acc: {value['acc']} - Recall: {value['recall']} - F1: {value['f1']}"
+                    info = f"Subject: {key} - Acc: {value['acc']} - Recall: {value['recall']} - F1: {value['f1']}, True: {value['origin']}, 'Pred': {value['found']}, 'Right': {value['right']}"
                     logger.info(info)
             else:
                 logger.info(f"\nEpoch {epoch}: macro-f1 decreased from {best_f1} to {logs['macro-f1']}")
@@ -82,10 +84,11 @@ class Trainer():
         with torch.no_grad():
             pbar = ProgressBar(n_total=len(dev_loader), desc="Evaluating")
             for step, batch in enumerate(dev_loader):
-                input_ids, input_mask, input_tags, input_lens = batch
+                input_ids, input_mask, input_tags, input_lens, input_group = batch
                 input_ids = input_ids.to(self.device)
                 input_mask = input_mask.to(self.device)
                 input_tags = input_tags.to(self.device)
+                input_group = input_group.to(self.device)
                 batch_tagids = self.model.predict(input_ids, input_mask, input_tags, input_lens)
                 pred_batch_tagids = batch_tagids if isinstance(batch_tagids, list)  else batch_tagids.cpu().numpy() 
                 metrics.update(input_tags.cpu().numpy(), pred_batch_tagids)

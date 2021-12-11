@@ -29,7 +29,7 @@ class SeqEntityMetrics(object):
             found = found_counter.get(type_, 0)
             right = right_counter.get(type_, 0)
             recall, precision, f1 = self.compute(origin, found, right)
-            class_info[type_] = {"acc": round(precision, 4), 'recall': round(recall, 4), 'f1': round(f1, 4)}
+            class_info[type_] = {"acc": round(precision, 4), 'recall': round(recall, 4), 'f1': round(f1, 4), 'origin': origin, 'found':found, 'right':right}
         recall, precision, f1 = self.compute(len(self.origins), len(self.founds), len(self.rights))
         overall = {'acc': precision, 'recall': recall, 'micro-f1': f1, 'macro-f1': np.mean([x['f1'] for x in class_info.values()])}
         return overall, class_info
@@ -49,13 +49,14 @@ class SeqEntityMetrics(object):
         for label_path, pre_path in zip(label_paths, pred_paths):
             label_entities = get_entities(label_path, self.id2label, self.markup)
             pre_entities = get_entities(pre_path, self.id2label, self.markup)
+            print(pre_entities, label_entities), 
             self.origins.extend(label_entities)
             self.founds.extend(pre_entities)
             self.rights.extend([pre_entity for pre_entity in pre_entities if pre_entity in label_entities])
         
     def print(self, overall, class_info):
         for key, value in class_info.items():
-            info = f"Subject: {key} - Acc: {value['acc']} - Recall: {value['recall']} - F1: {value['f1']}"
+            info = f"Subject: {key} - Acc: {value['acc']} - Recall: {value['recall']} - F1: {value['f1']}, True: {value['origin']}, 'Pred': {value['found']}, 'Right': {value['right']}"
             print(info)
         info = f"Overall - Acc: {overall['acc']} - Recall: {overall['recall']} - micro-f1: {overall['micro-f1']} - macro-f1: {overall['macro-f1']}"
         print(info)

@@ -1,5 +1,6 @@
 import json
 from .vocabulary import Vocabulary
+import jieba
 
 class CluenerProcessor:
     """Processor for the chinese ner data set."""
@@ -55,10 +56,17 @@ class CluenerProcessor:
                                 else:
                                     labels[start_index] = 'B-' + key
                                     labels[start_index + 1:end_index + 1] = ['I-' + key] * (len(sub_name) - 1)
+                seg_list = jieba.lcut(text)
+                group_list = []
+                i = 0
+                for s in seg_list:
+                    group_list.extend([i] * len(s))
+                    i+=1
                 json_d['id'] = f"{mode}_{idx}"
                 json_d['context'] = words
                 json_d['tag'] = labels
                 json_d['raw_context'] = "".join(words)
+                json_d['group'] = group_list
                 idx += 1
                 examples.append(json_d)
         return examples

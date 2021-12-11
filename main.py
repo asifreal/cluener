@@ -11,6 +11,7 @@ from data.data_loader import DataLoader
 from models.metrics import AverageMeter
 from trainer import Trainer
 import time
+import numpy as np
 
 
 print("读取数据中...")
@@ -19,6 +20,8 @@ processor.build_vocab()
 
 train_data = processor.get_train_examples()
 dev_data = processor.get_dev_examples()
+test_data = processor.get_test_examples()
+
 word2id = processor.vocab.word2idx
 tag2id = config.label2id['bios']
 id2tag = {i: label for i, label in enumerate(tag2id)}
@@ -125,6 +128,52 @@ def bilstm_attn_crf_evaluate():
     overall, class_info = metrics.result()
     metrics.print(overall, class_info)
 
+def word2vector(embedding_size=64):
+    import gensim, os
+    path = f"./output/desc_doc2vec_{embedding_size}.model"
+    if os.path.exists(path):
+        model = gensim.models.Word2Vec.load(path)
+    else:
+        corpus = []
+        for data in [train_data, dev_data, test_data]:
+            for d in data:
+                corpus.append(list(d))
+
+        model = gensim.models.Word2Vec(vector_size=embedding_size, window=7, min_count=1, workers=48, alpha=0.025, min_alpha=0.001, epochs=50)
+        model.build_vocab(corpus)
+        print("开始训练...")
+        model.train(corpus, total_examples=model.corpus_count, epochs=model.epochs)
+        model.save(path)
+        print("model saved")
+    weight = np.zeros((len(processor.vocab), embedding_size))
+    for k, v in processor.vocab.word2idx.items():
+        weight[v] = model.wv[k]
+    return weight
+
+def wv_bilstm_attention_evaluate():
+    weight = torch.Tensor( word2vector(embedding_size=64) )
+    model = BiLstmAttention(vocab_size=len(processor.vocab), embedding_size=64,
+                    hidden_size=64,out_size=len(tag2id), pretrain=weight)
+
+    trainer = Trainer(model, id2tag, tag2id, device='gpu', name='wv-bilstm-attn')
+    trainer.train(train_loader, dev_loader, epoches=50)
+
+    metrics, pred_tag_ids = trainer.evaluate(dev_loader)
+    overall, class_info = metrics.result()
+    metrics.print(overall, class_info)
+
+def wv_bilstm_attn_crf_evaluate():
+    weight = torch.Tensor( word2vector(embedding_size=64) )
+    model = BiLstmCRFAttnModel(vocab_size=len(processor.vocab), embedding_size=64,
+                     hidden_size=64,device='cuda:0',label2id=tag2id, drop_p=0.5, pretrain=weight)
+
+    trainer = Trainer(model, id2tag, tag2id, device='gpu', name='wv-bilstm-attn-crf')
+    trainer.train(train_loader, dev_loader, epoches=50)
+    
+    metrics, pred_tag_ids = trainer.evaluate(dev_loader)
+    overall, class_info = metrics.result()
+    metrics.print(overall, class_info)
+
 if __name__ == "__main__":
     #hmm_evaluate()
     #crf_evaluate()
@@ -133,3 +182,5 @@ if __name__ == "__main__":
     bilstm_attention_evaluate()
     #bilstm_crf_evaluate()
     #bilstm_attn_crf_evaluate()
+    #wv_bilstm_attention_evaluate()
+    #wv_bilstm_attn_crf_evaluate()

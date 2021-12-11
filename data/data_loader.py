@@ -2,7 +2,7 @@ import random
 import torch
 
 class DataLoader(object):
-    def __init__(self, data, batch_size, shuffle, vocab,label2id,seed, key='tag', sort=True):
+    def __init__(self, data, batch_size, shuffle, vocab,label2id,seed, group=True, key='tag', sort=True):
         self.data = data
         self.shuffle = shuffle
         self.batch_size = batch_size
@@ -11,6 +11,7 @@ class DataLoader(object):
         self.vocab = vocab
         self.label2id = label2id
         self.key=key
+        self.group = group
         self.reset()
 
     def reset(self):
@@ -33,7 +34,11 @@ class DataLoader(object):
             x_len = len(tokens)
             text_tag = d[self.key]
             tag_ids = [self.label2id[tag] for tag in text_tag]
-            processed.append((tokens, tag_ids, x_len, text_a, text_tag))
+            if self.group:
+                x_group = d['group']
+                processed.append((tokens, tag_ids, x_len, text_a, text_tag, x_group))
+            else:
+                processed.append((tokens, tag_ids, x_len, text_a, text_tag))
         return processed
 
     def get_long_tensor(self, tokens_list, batch_size, mask=None):
@@ -69,9 +74,13 @@ class DataLoader(object):
         batch_size = len(batch)
         batch = list(zip(*batch))
         lens = [len(x) for x in batch[0]]
-        batch, orig_idx = self.sort_all(batch, lens)
+        #batch, orig_idx = self.sort_all(batch, lens)
         chars = batch[0]
         input_ids, input_mask = self.get_long_tensor(chars, batch_size, mask=True)
         label_ids = self.get_long_tensor(batch[1], batch_size)
         input_lens = [len(x) for x in batch[0]]
-        return (input_ids, input_mask, label_ids, input_lens)
+        if self.group:
+            input_group = self.get_long_tensor(batch[5], batch_size)
+            return (input_ids, input_mask, label_ids, input_lens, input_group)
+        else:
+            return (input_ids, input_mask, label_ids, input_lens)
