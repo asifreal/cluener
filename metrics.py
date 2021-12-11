@@ -49,7 +49,7 @@ class SeqEntityMetrics(object):
         for label_path, pre_path in zip(label_paths, pred_paths):
             label_entities = get_entities(label_path, self.id2label, self.markup)
             pre_entities = get_entities(pre_path, self.id2label, self.markup)
-            print(pre_entities, label_entities), 
+            #print(pre_entities, label_entities), 
             self.origins.extend(label_entities)
             self.founds.extend(pre_entities)
             self.rights.extend([pre_entity for pre_entity in pre_entities if pre_entity in label_entities])
