@@ -5,7 +5,7 @@ from metrics import  SeqEntityMetrics
 from data.cluener_processor import CluenerProcessor
 from models.HMM import HMM
 from models.CRF import CRFModel, CRFTorchModel
-from models.BILSTM_CRF import BiLstmCRFModel, BiLstmCRFAttnModel, WvBiLstmCRFAttnModel, WvBiLstmCRFAttnWithSegModel
+from models.BILSTM_CRF import BiLstmCRFModel, BiLstmCRFAttnModel, WvBiLstmCRFAttnModel, WvBiLstmCRFAttnWithSegModel, BiLstmCRFAttnWithSegModel
 from models.BILSTM import BiLstm, BiLstmAttention
 from data.data_loader import DataLoader
 from models.metrics import AverageMeter
@@ -174,6 +174,18 @@ def wv_bilstm_attn_crf_evaluate():
     overall, class_info = metrics.result()
     metrics.print(overall, class_info)
 
+def bilstm_attn_crf_seg_evaluate():
+    weight = torch.Tensor( word2vector(embedding_size=64) )
+    model = BiLstmCRFAttnWithSegModel(vocab_size=len(processor.vocab), embedding_size=64,
+                     hidden_size=64,device='cuda:0',label2id=tag2id, drop_p=0.5, pretrain=None)
+
+    trainer = Trainer(model, id2tag, tag2id, device='gpu', name='bilstm-attn-crf-seg')
+    trainer.train(train_loader, dev_loader, epoches=100)
+    
+    metrics, pred_tag_ids = trainer.evaluate(dev_loader)
+    overall, class_info = metrics.result()
+    metrics.print(overall, class_info)
+
 def wv_bilstm_attn_crf_seg_evaluate():
     weight = torch.Tensor( word2vector(embedding_size=64) )
     model = WvBiLstmCRFAttnWithSegModel(vocab_size=len(processor.vocab), embedding_size=64,
@@ -193,7 +205,8 @@ if __name__ == "__main__":
     #bilstm_evaluate()
     #bilstm_attention_evaluate()
     #bilstm_crf_evaluate()
-    bilstm_attn_crf_evaluate()
     #wv_bilstm_attention_evaluate()
+    #bilstm_attn_crf_seg_evaluate()
+    #bilstm_attn_crf_evaluate()
     #wv_bilstm_attn_crf_evaluate()
-    #wv_bilstm_attn_crf_seg_evaluate()
+    wv_bilstm_attn_crf_seg_evaluate()

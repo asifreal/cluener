@@ -149,6 +149,63 @@ class WvBiLstmCRFAttnModel(nn.Module):
         tags, _ = self.crf._obtain_labels(features, self.id2label, input_lens)
         return tags
 
+class BiLstmCRFAttnWithSegModel(nn.Module):
+    def __init__(self,vocab_size,embedding_size,hidden_size,
+                 label2id,device,pretrain,drop_p = 0.1):
+        super(BiLstmCRFAttnWithSegModel, self).__init__()
+        self.id2label = {i: label for i, label in enumerate(label2id)}
+        self.emebdding_size = embedding_size
+        self.embedding = nn.Embedding(vocab_size, embedding_size)
+        
+        self.bilstm = nn.LSTM(input_size=embedding_size,hidden_size=hidden_size,
+                              batch_first=True,num_layers=2,dropout=drop_p,
+                              bidirectional=True)
+        self.multihead_attn = nn.MultiheadAttention(embed_dim=hidden_size*2, num_heads=8, batch_first=True)
+        self.dropout = SpatialDropout(drop_p)
+        self.layer_norm = LayerNorm(hidden_size * 2)
+        self.classifier = nn.Linear(hidden_size * 2,len(label2id))
+        self.crf = CRF(tagset_size=len(label2id), tag_dictionary=label2id, device=device)
+        self.fc = nn.Linear(hidden_size * 2, 57) # 28 is group size
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, inputs_ids, input_mask):
+        embs = self.embedding(inputs_ids)
+        embs = self.dropout(embs)
+        embs = embs * input_mask.float().unsqueeze(2)
+        packed_out, _ = self.bilstm(embs)
+        atten_out, _ = self.multihead_attn(query=packed_out, key=packed_out, value=packed_out, key_padding_mask=input_mask)
+
+        seqence_output= self.layer_norm(atten_out + packed_out)
+        features = self.classifier(seqence_output)
+        feat = self.fc(seqence_output)
+        return features, feat
+
+    def forward_loss(self, input_ids, input_mask, input_lens, input_tags, input_group=None):
+        features, feat = self.forward(input_ids, input_mask)
+        loss1 =  self.crf.calculate_loss(features, tag_list=input_tags, lengths=input_lens)
+        loss2 = self.classifiy_loss(feat, input_group, input_mask)
+        loss = loss1 + 0.5 * loss2
+        return loss
+      
+
+    def classifiy_loss(self, feat, targets, input_mask):
+        """计算损失
+        参数:
+            logits: [B, L, out_size]
+            targets: [B, L]
+            input_mask: [B, L]
+        """
+        out_shape = feat.shape[2]
+        logits = (feat * input_mask.unsqueeze(2)).view(-1, out_shape)
+        targets = (targets * input_mask).view(-1)
+        assert logits.size(0) == targets.size(0)
+        loss = self.criterion(logits, targets)
+        return loss
+        
+    def predict(self, input_ids, input_mask, input_tags, input_lens):
+        features, feat= self.forward(input_ids, input_mask)
+        tags, _ = self.crf._obtain_labels(features, self.id2label, input_lens)
+        return tags
 
 class WvBiLstmCRFAttnWithSegModel(nn.Module):
     def __init__(self,vocab_size,embedding_size,hidden_size,
@@ -174,7 +231,7 @@ class WvBiLstmCRFAttnWithSegModel(nn.Module):
                               bidirectional=True)
         self.cross_multihead_attn = nn.MultiheadAttention(embed_dim=hidden_size*2, num_heads=8, batch_first=True)
 
-        self.fc = nn.Linear(hidden_size * 2, 57) # 28 is group size
+        self.fc = nn.Linear(hidden_size * 4, 57) # 28 is group size
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, inputs_ids, input_mask):
@@ -191,8 +248,9 @@ class WvBiLstmCRFAttnWithSegModel(nn.Module):
         seqence_output= self.layer_norm(atten_out + packed_out)
         wv_output = self.layer_norm(wv_packed + wv_atten)
 
-        features = self.classifier(torch.cat((seqence_output, wv_output), 2))
-        feat = self.fc(wv_output)
+        combine = torch.cat((seqence_output, wv_output), 2)
+        features = self.classifier(combine)
+        feat = self.fc(combine)
         return features, feat
 
     def forward_loss(self, input_ids, input_mask, input_lens, input_tags, input_group=None):
